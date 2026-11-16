@@ -79,17 +79,38 @@ func TestWotLKClientOpens(t *testing.T) {
 	if err != nil {
 		t.Fatalf("the tile's textures: %v", err)
 	}
-	layers, alpha := 0, 0
+	// Every layer over a chunk's first has a map, and nearly all of them paint something down to
+	// their last rows: the maps are as long as the MCNK header says, where the tile's MCAL claims 512
+	// bytes (adt.alphaChunk), which left most layers unpainted.
+	layers, alpha, painted, lastRows := 0, 0, 0, 0
 	for _, tc := range textures.Chunks {
 		layers += len(tc.Layers)
 		for _, a := range tc.Alpha {
-			if len(a) == 64*64 {
-				alpha++
+			if len(a) != 64*64 {
+				continue
+			}
+			alpha++
+			any, low := false, false
+			for i, v := range a {
+				if v != 0 {
+					any = true
+					low = low || i >= 32*64
+				}
+			}
+			if any {
+				painted++
+			}
+			if low {
+				lastRows++
 			}
 		}
 	}
+	t.Logf("%d layers, %d alpha maps: %d paint something, %d in their lower half", layers, alpha, painted, lastRows)
 	if len(terrain.Chunks) != 256 || len(textures.Chunks) != 256 || layers < 256 || alpha == 0 {
 		t.Errorf("%d terrain chunks, %d texture chunks, %d layers, %d alpha maps of 64x64; want 256, 256, at least 256 and some", len(terrain.Chunks), len(textures.Chunks), layers, alpha)
+	}
+	if painted*10 < alpha*7 || lastRows*10 < alpha*6 {
+		t.Errorf("of %d alpha maps only %d paint something and %d reach their lower half", alpha, painted, lastRows)
 	}
 }
 
