@@ -1177,23 +1177,14 @@ export function ModelAnimations(model: string): $CancellablePromise<vmangos$0.An
     return $Call.ByID(767373849, model);
 }
 
-/**
- * MouseLookBegin remembers where the cursor is, for MouseLookRecenter and MouseLookEnd.
- */
 export function MouseLookBegin(): $CancellablePromise<boolean> {
     return $Call.ByID(27397576);
 }
 
-/**
- * MouseLookEnd puts the cursor back where the drag started.
- */
 export function MouseLookEnd(): $CancellablePromise<void> {
     return $Call.ByID(3773312388);
 }
 
-/**
- * MouseLookRecenter moves the cursor back to where MouseLookBegin found it.
- */
 export function MouseLookRecenter(): $CancellablePromise<void> {
     return $Call.ByID(1142981827);
 }

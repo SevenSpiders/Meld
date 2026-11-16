@@ -4,8 +4,10 @@
 # step of finding out what it needs there, not a promise that everything works.
 #
 # It installs what is missing and skips what is there, so it is safe to run again:
-#   - Go and Bun through Homebrew, when not on the PATH (a Go older than go.mod's downloads go.mod's
-#     toolchain itself at the first build);
+#   - Go through Homebrew and Bun through its own installer (into ~/.bun), when not on the PATH. A Go
+#     older than go.mod's downloads go.mod's toolchain itself at the first build. Bun does not come
+#     from Homebrew: its formula is in a tap, and Homebrew refuses to install from one on a Mac
+#     whose Xcode it finds outdated;
 #   - wails3 at go.mod's Wails version (`make dev`, `make dev-page`, `make bindings`) and
 #     golangci-lint v2 (`make check` skips the lint without it);
 #   - the frontend's packages (`bun install --frozen-lockfile`).
@@ -29,7 +31,7 @@ for arg in "$@"; do
 	case "$arg" in
 		--no-lint) lint=0 ;;
 		-h | --help)
-			sed -n '2,24p' "$0"
+			sed -n '2,26p' "$0"
 			exit 0
 			;;
 		*)
@@ -58,6 +60,21 @@ add_path() {
 			;;
 	esac
 }
+
+# Runs a command up to four times. A download that breaks part-way (a flaky IPv6 route does it) goes on
+# from what the module cache already holds, so a second run gets further than the first.
+retry() {
+	local n=1
+	until "$@"; do
+		if [ $n -ge 4 ]; then
+			return 1
+		fi
+		n=$((n + 1))
+		log "that failed; trying again ($n of 4)"
+		sleep 3
+	done
+}
+go_install() { (cd "$root" && go install "$1"); }
 
 if ! xcode-select -p >/dev/null 2>&1; then
 	log "the Xcode Command Line Tools are missing: run 'xcode-select --install', then this script again"
@@ -93,9 +110,9 @@ if ! command -v bun >/dev/null; then
 	if [ -x "$HOME/.bun/bin/bun" ]; then
 		add_path "$HOME/.bun/bin"
 	else
-		need_brew Bun
-		log "installing Bun"
-		brew install oven-sh/bun/bun
+		log "installing Bun into ~/.bun"
+		curl -fsSL https://bun.sh/install | bash >/dev/null
+		add_path "$HOME/.bun/bin"
 	fi
 fi
 
@@ -103,19 +120,22 @@ fi
 wailsver=$(sed -n 's#^[[:space:]]*github.com/wailsapp/wails/v3 \(v[^ ]*\).*#\1#p' "$root/go.mod")
 if ! command -v wails3 >/dev/null || ! wails3 version 2>/dev/null | grep -qF "${wailsver#v}"; then
 	log "installing wails3 $wailsver"
-	(cd "$root" && go install "github.com/wailsapp/wails/v3/cmd/wails3@$wailsver")
+	retry go_install "github.com/wailsapp/wails/v3/cmd/wails3@$wailsver"
 fi
 
 if [ $lint = 1 ] && ! command -v golangci-lint >/dev/null; then
 	log "installing golangci-lint v2"
-	(cd "$root" && go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest)
+	retry go_install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest
 fi
 
 log "bun install"
-(cd "$root/frontend" && bun install --frozen-lockfile)
+(cd "$root/frontend" && retry bun install --frozen-lockfile)
+log "go mod download"
+(cd "$root" && retry go mod download)
 
 log "done: go $(go env GOVERSION), bun $(bun --version), $(wails3 version 2>/dev/null | head -n 1)"
 if [ -n "$missing_paths" ]; then
-	log "add these to your shell's PATH (~/.zshrc), which does not have them:$missing_paths"
+	log "this shell's PATH lacks:$missing_paths"
+	log "open a new terminal (or run: exec zsh) before make; if it still lacks one, add it in ~/.zshrc"
 fi
 log "next: make dev-page, then open http://localhost:34115"
