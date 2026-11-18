@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"testing"
@@ -61,13 +62,29 @@ func acFixture(t *testing.T) (AzerothCoreServer, string) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	client := filepath.Join(t.TempDir(), "client")
+	client := filepath.Join(shortTempDir(t), "client")
 	write(client, "Data/lichking.MPQ", mpq.Write([]mpq.File{{Name: `DBFilesClient\Map.dbc`, Data: acMapDBC(0, 1, 571)}}))
 	write(client, "Data/common.MPQ", mpq.Write(nil))
 	write(client, "Data/enUS/locale-enUS.MPQ", mpq.Write([]mpq.File{{Name: `DBFilesClient\AreaTable.dbc`, Data: []byte("stock")}}))
 	write(client, "Data/enUS/patch-enUS-3.MPQ", mpq.Write(nil))
 	write(client, "Data/patch-4.MPQ", mpq.Write([]mpq.File{{Name: `DBFilesClient\AreaTable.dbc`, Data: []byte("meld")}, {Name: `World\Maps\Map571\Map571_30_21.adt`, Data: []byte("tile")}}))
 	return s, client
+}
+
+// shortTempDir is a temporary folder with a short path: off Windows under /tmp, since a Mac's
+// t.TempDir is under /var/folders/…/T/ with the test's name after it, which takes the fixture's
+// client past the 127 characters AzerothCore's map extractor keeps of its input path.
+func shortTempDir(t *testing.T) string {
+	t.Helper()
+	if runtime.GOOS == "windows" {
+		return t.TempDir()
+	}
+	dir, err := os.MkdirTemp("/tmp", "meld-ac")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.RemoveAll(dir) })
+	return dir
 }
 
 // acRunner fakes AzerothCore's tools run in the staging folder: the map extractor writes map 571's
