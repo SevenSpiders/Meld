@@ -25,6 +25,9 @@
 	import { CAMERA_VIEWS, cameraView, setCameraView } from '../lib/ui/cameraView'
 	import { buildMenus, regionEvents, type MenuActions, type MenuItem } from '../lib/ui/menus'
 
+	/** Meld's version (vite.config.ts), beside the WoW client's at the bar's right end. */
+	const meldVersion = typeof __MELD_VERSION__ === 'string' ? __MELD_VERSION__ : 'dev'
+
 	/** Opens a recent project from the File menu; one that no longer opens shows the Project dialog with why. */
 	async function switchProject(p: ProjectInfo) {
 		const err = await openProject(p.name, p.path, p.clientPath)
@@ -258,9 +261,31 @@
 		<button onclick={() => engineRef.current?.redo()} disabled={!ui.canRedo} title="Redo (Ctrl+Y)" aria-label="Redo">↷</button>
 	</div>
 	<div class="spacer"></div>
+	<span class="versions" title={wow.loaded ? `WoW client ${wow.version || 'of unknown version'} (build ${wow.build}) at ${wow.path}\nMeld ${meldVersion}` : `No WoW client loaded\nMeld ${meldVersion}`}>
+		<span class="wowver" class:none={!wow.loaded}>{wow.loaded ? `WoW ${wow.version || '?'}` : 'No client'}</span>
+		<span class="dot">·</span>
+		<span>Meld {meldVersion}</span>
+	</span>
 </header>
 
 <style>
+	.versions {
+		display: flex;
+		gap: 6px;
+		align-items: center;
+		font-size: 11px;
+		color: var(--text-dim);
+		white-space: nowrap;
+		user-select: none;
+	}
+	.versions .wowver {
+		color: var(--accent-text);
+		font-weight: 600;
+	}
+	.versions .wowver.none {
+		color: inherit;
+		font-weight: normal;
+	}
 	.menubar {
 		display: flex;
 		align-items: center;
