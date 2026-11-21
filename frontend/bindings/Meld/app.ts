@@ -1606,6 +1606,17 @@ export function Projects(): $CancellablePromise<$models.ProjectList> {
 }
 
 /**
+ * PublishAzerothCoreMap publishes a map made for the 3.3.5a client to the AzerothCore server
+ * (vmangos.PublishAzerothCore): written into the client's patch, a dungeon's instance_template row added
+ * to acore_world, and the server's map data and tables rebuilt once the game is closed and the world
+ * server stopped, in the background, as PublishVmangosMap does: its progress arrives as "publish:log"
+ * events, and "publish:done" carries an error message, or nothing.
+ */
+export function PublishAzerothCoreMap(m: vmangos$0.MapSpec): $CancellablePromise<void> {
+    return $Call.ByID(2245302500, m);
+}
+
+/**
  * PublishCMaNGOSMap publishes a map made in the editor to the CMaNGOS server (#1037): written into the
  * client's patch, its instance_template row (a dungeon, raid or battleground) written into an SQL file
  * in the server's meld-sql folder to import, and the server's map data rebuilt by its extractors, once
@@ -1621,7 +1632,8 @@ export function PublishCMaNGOSMap(m: vmangos$0.MapSpec): $CancellablePromise<str
  * PublishPending is what Publish would write for map m, without writing anything (#959): the client
  * files that differ from the patch's copies, and the world database's rows. While the export's core is
  * CMaNGOS classic, a dungeon's instance_template row, which Compile to CMaNGOS Server leaves in an SQL
- * file, follows the map_template row (#1085).
+ * file, follows the map_template row (#1085); while it is AzerothCore, which has no map_template, a
+ * dungeon's instance_template row takes its place.
  */
 export function PublishPending(m: vmangos$0.MapSpec, core: string): $CancellablePromise<vmangos$0.PublishPreview> {
     return $Call.ByID(2669731803, m, core);

@@ -32,7 +32,7 @@ import { vmangos } from '../wails/models'
 import { EventsOn } from '../wails/runtime'
 import { applyNote } from './applyNote'
 import { countOf, pickSpawnEdits, skippedTiles, spawnItem } from './leaveOut'
-import { publishCmangosMap } from './publish'
+import { publishAzerothcoreMap, publishCmangosMap } from './publish'
 
 /**
  * Writes the active region's spawn edits (moved, changed, added and deleted creatures and objects)
@@ -392,10 +392,7 @@ export function compileCmangos(engine: Engine) {
  */
 export function compileAzerothcore(engine: Engine) {
 	if (refuseGuestExport(engine)) return
-	if (engine.activeVmangos()) {
-		setStatus('A map made in the editor is not published to AzerothCore yet: Compile to AzerothCore Server rebuilds a continent of the client.', 10000)
-		return
-	}
+	if (engine.activeVmangos()) return publishAzerothcoreMap(engine)
 	return guarded('Compile to AzerothCore', () =>
 		withSaving('Compiling to the AzerothCore server', async () => {
 			const region = engine.activeRegion()

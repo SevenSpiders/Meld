@@ -1,9 +1,9 @@
 // Publishing a map made for the client, and Save, which publishes one.
-import { CmangosPath, PublishCMaNGOSMap, PublishVmangosMap } from '../wails/App'
+import { AzerothcorePath, CmangosPath, PublishAzerothCoreMap, PublishCMaNGOSMap, PublishVmangosMap } from '../wails/App'
 import { guarded } from './backend'
 import { refuseGuestExport } from '../session/shared.svelte'
 import type { Engine } from '../engine/Engine'
-import { editor, setStatus, ui } from '../state/editor.svelte'
+import { editor, setStatus, ui, wow } from '../state/editor.svelte'
 import { savingDetail, startSaving } from '../state/saving'
 import { mapToTiles, type ExportObject } from './vmangosExport'
 import { TILE_SIZE, teleportCommand, wmoOnlyTiles } from './portCoords'
@@ -12,6 +12,7 @@ import { TILE_CELLS } from '../wow/format'
 import { vmangos } from '../wails/models'
 import { EventsOn } from '../wails/runtime'
 import { saveMap } from './mapio'
+import { WOTLK_BUILD } from './folderGaps'
 
 /** The `.go` line the last publish's message gives: the map's start, or a WMO-only map's building. */
 let lastGo = ''
@@ -153,6 +154,45 @@ export function publishCmangosMap(engine: Engine) {
 }
 
 /**
+ * A map made for the 3.3.5a client published to the AzerothCore server (File › Compile to AzerothCore Server,
+ * or Save, on such a map): written into the client's patch with its MapDifficulty row, a dungeon's
+ * instance_template row added to acore_world, and the server's map data and tables rebuilt by its own
+ * extractors for this map alone. Runs in the background, through the publish events.
+ */
+export function publishAzerothcoreMap(engine: Engine) {
+	if (refuseGuestExport(engine)) return
+	return guarded('Publish to AzerothCore', async () => {
+		const p = publishInput(engine)
+		if (typeof p === 'string') {
+			setStatus(p, 6000)
+			return
+		}
+		if (!(await AzerothcorePath())) {
+			setStatus('Set the AzerothCore server folder first (Edit › Preferences › Folders), then publish again.', 8000)
+			return
+		}
+		listenToPublish()
+		lastGo = p.go
+		lastStart = 'Start the AzerothCore world server (it reads the new map only at start) and the game'
+		ui.busy = true
+		endPublish = startSaving(`Publishing ${p.dir} to the AzerothCore server`)
+		setStatus(`Publishing ${p.dir} to the AzerothCore server…${p.notes.length ? ' ' + p.notes.join('. ') + '.' : ''}`, 0)
+		try {
+			await PublishAzerothCoreMap(p.spec)
+		} catch (e) {
+			ui.busy = false
+			endPublish()
+			throw e
+		}
+	})
+}
+
+/** Publishes the map to the server its client is for: AzerothCore for a 3.3.5a client, VMaNGOS for a 1.12 one. */
+export function publishMap(engine: Engine) {
+	return wow.build === WOTLK_BUILD ? publishAzerothcoreMap(engine) : publishVmangosMap(engine)
+}
+
+/**
  * Save for a map made for the client is a publish: it asks first, because the world server stops and
  * players are disconnected. Other maps just save.
  */
@@ -167,5 +207,5 @@ export function saveOrPublish(engine: Engine, saveAs = false) {
 /** Saves the map, then publishes it, if the save went through. */
 export async function saveAndPublish(engine: Engine) {
 	await saveMap(engine)
-	if (!editor.dirty) await publishVmangosMap(engine)
+	if (!editor.dirty) await publishMap(engine)
 }

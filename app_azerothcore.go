@@ -112,6 +112,48 @@ func (a *App) UpdateAzerothCoreServer(mapID int, tiles []string) (err error) {
 	return nil
 }
 
+// PublishAzerothCoreMap publishes a map made for the 3.3.5a client to the AzerothCore server
+// (vmangos.PublishAzerothCore): written into the client's patch, a dungeon's instance_template row added
+// to acore_world, and the server's map data and tables rebuilt once the game is closed and the world
+// server stopped, in the background, as PublishVmangosMap does: its progress arrives as "publish:log"
+// events, and "publish:done" carries an error message, or nothing.
+func (a *App) PublishAzerothCoreMap(m vmangos.MapSpec) (err error) {
+	if !a.serverBusy.CompareAndSwap(false, true) {
+		return errServerBusy
+	}
+	started := false
+	defer func() {
+		if !started {
+			a.serverBusy.Store(false)
+		}
+	}()
+	clientDir, err := a.clientRoot()
+	if err != nil {
+		return err
+	}
+	path := a.AzerothcorePath()
+	if path == "" {
+		return errors.New("set the AzerothCore server folder first (Edit › Preferences › Folders)")
+	}
+	server, err := vmangos.CheckAzerothCore(path)
+	if err != nil {
+		return err
+	}
+	started = true
+	go func() {
+		defer a.serverBusy.Store(false)
+		logf := func(line string) { a.emit("publish:log", line) }
+		msg := ""
+		if err := a.waitForGameClosed(filepath.Join(clientDir, "Data"), logf); err != nil {
+			msg = err.Error()
+		} else if err := vmangos.PublishAzerothCore(server, clientDir, m, !a.buildMoveMaps(), nil, logf); err != nil {
+			msg = err.Error()
+		}
+		a.emit("publish:done", msg)
+	}()
+	return nil
+}
+
 // SpawnsInAzerothCore says whether the region's spawns are read from and saved into the AzerothCore
 // server's world database (the client is 3.3.5a and the AzerothCore server folder is set), for the
 // compile and the Changes window, which otherwise wait for a VMaNGOS server folder.

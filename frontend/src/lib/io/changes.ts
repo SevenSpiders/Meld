@@ -5,10 +5,11 @@
 // SQL of a row, of the ticked ones or of all.
 import { PublishPending, SpawnEditSQL, SpawnsInAzerothCore, VmangosPath, WaitingClientFiles } from '../wails/App'
 import type { Engine } from '../engine/Engine'
-import { editor, prefs } from '../state/editor.svelte'
+import { editor, prefs, wow } from '../state/editor.svelte'
 import type { vmangos } from '../wails/models'
 import { regionEdit, regionName, regionPending } from './compile'
 import { publishInput } from './publish'
+import { WOTLK_BUILD } from './folderGaps'
 import { pickSpawnEdits } from './leaveOut'
 
 /** What the window lists for the active map. */
@@ -58,7 +59,8 @@ export async function loadChanges(engine: Engine): Promise<ChangesView> {
 			return view
 		}
 		view = empty(`Publish ${p.dir}`)
-		const res = await PublishPending(p.spec, prefs.exportCore)
+		// A 3.3.5a client's map publishes to AzerothCore whatever the export's core (publishMap).
+		const res = await PublishPending(p.spec, wow.build === WOTLK_BUILD ? 'azerothcore' : prefs.exportCore)
 		view.files = res.files ?? []
 		view.tiles = res.tiles
 		view.rows = res.rows ?? []

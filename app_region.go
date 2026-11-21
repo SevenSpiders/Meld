@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"path/filepath"
+	"slices"
 	"strconv"
 
 	"Meld/internal/mpq"
@@ -209,7 +210,8 @@ func (a *App) RegionPending(edit vmangos.RegionEdit) (vmangos.RegionResult, erro
 // PublishPending is what Publish would write for map m, without writing anything (#959): the client
 // files that differ from the patch's copies, and the world database's rows. While the export's core is
 // CMaNGOS classic, a dungeon's instance_template row, which Compile to CMaNGOS Server leaves in an SQL
-// file, follows the map_template row (#1085).
+// file, follows the map_template row (#1085); while it is AzerothCore, which has no map_template, a
+// dungeon's instance_template row takes its place.
 func (a *App) PublishPending(m vmangos.MapSpec, core string) (vmangos.PublishPreview, error) {
 	dataDir, err := a.clientDataDir()
 	if err != nil {
@@ -219,8 +221,15 @@ func (a *App) PublishPending(m vmangos.MapSpec, core string) (vmangos.PublishPre
 	if err != nil {
 		return p, err
 	}
-	if vmangos.ParseCore(core) == vmangos.CMaNGOSClassic {
+	switch vmangos.ParseCore(core) {
+	case vmangos.CMaNGOSClassic:
 		if row, ok := vmangos.CMaNGOSInstanceRow(m, a.CmangosPath()); ok {
+			p.Rows = append(p.Rows, row)
+		}
+	case vmangos.AzerothCore:
+		// AzerothCore takes no map_template: a dungeon's row is instance_template's.
+		p.Rows = slices.DeleteFunc(p.Rows, func(r vmangos.RowChange) bool { return r.Table == "map_template" })
+		if row, ok := vmangos.ACInstanceRow(m); ok {
 			p.Rows = append(p.Rows, row)
 		}
 	}
