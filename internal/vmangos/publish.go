@@ -11,6 +11,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"Meld/internal/clientbuild"
 )
 
 // Runner runs the programs a publish needs: the server's extractors and mariadb, and the world
@@ -188,6 +190,9 @@ func Publish(p PublishPlan, spec MapSpec, log func(string)) error {
 	if err := CheckServer(p.ServerRoot); err != nil {
 		return err
 	}
+	if err := vanillaClient(clientData); err != nil {
+		return err
+	}
 
 	log("Writing the map into the client's patch…")
 	// Whether the server had the patch's last state, before this export writes a newer one: only then
@@ -211,6 +216,20 @@ func Publish(p PublishPlan, spec MapSpec, log func(string)) error {
 	}
 	return publishServer(p, clientData, spec, tiles, log)
 }
+
+// vanillaClient refuses a client other than 1.12 before a VMaNGOS publish writes anything: VMaNGOS's
+// extractors read only the 1.12 client's tables (on a 3.3.5a client its MapExtractor stops at "Invalid
+// Map.dbc file format"), and the publish would put the later client's Map.dbc into the server's dbc
+// folder and a map_template row into its world database.
+func vanillaClient(clientData string) error {
+	if b := clientbuild.Detect(clientData).Build; b == clientbuild.TBC || b == clientbuild.WotLK {
+		return fmt.Errorf("%w: VMaNGOS reads only a 1.12 client, and %s is %s, so nothing was written (a 3.3.5a map publishes to AzerothCore: Edit › Preferences › Folders)", ErrNotVanillaClient, filepath.Dir(clientData), b.Version())
+	}
+	return nil
+}
+
+// ErrNotVanillaClient is the error of a VMaNGOS publish refused because the client is a later one.
+var ErrNotVanillaClient = errors.New("not a 1.12 client")
 
 // isMapTile reports whether a data/maps file name is one of the map's tiles: the map ID in three
 // digits, the tile's y and x in two each, then ".map".

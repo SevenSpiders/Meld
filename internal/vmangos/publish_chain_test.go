@@ -3,6 +3,7 @@ package vmangos
 import (
 	"bytes"
 	"encoding/binary"
+	"errors"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -278,5 +279,39 @@ func TestPublishChainLockedPatch(t *testing.T) {
 	}
 	if callOf(f.calls, "mariadb") == "" {
 		t.Fatalf("calls %q, want the server rebuilt", f.calls)
+	}
+}
+
+// A VMaNGOS publish from a 3.3.5a client stops before it writes anything: no patch, no table in the
+// server's dbc folder and no program run, since VMaNGOS's extractors cannot read that client's tables.
+func TestPublishRefusesALaterClient(t *testing.T) {
+	cache, oldRoot := t.TempDir(), pendingRoot
+	pendingRoot = func() string { return cache }
+	defer func() { pendingRoot = oldRoot }()
+
+	root := chainClient(t)
+	dataDir := filepath.Join(root, "Data")
+	if err := os.Rename(filepath.Join(dataDir, "base.MPQ"), filepath.Join(dataDir, "lichking.MPQ")); err != nil {
+		t.Fatal(err)
+	}
+	server := serverFolder(t)
+	tile := TileSpec{X: 10, Y: 10, Outer: flatTile(0)}
+	f := &fakeRunner{}
+	err := Publish(PublishPlan{ClientRoot: root, ServerRoot: server, Run: f, Mariadb: "mariadb", SkipMoveMaps: true},
+		MapSpec{Dir: chainMap, MapID: chainID, Tiles: []TileSpec{tile}}, func(string) {})
+	if !errors.Is(err, ErrNotVanillaClient) || !strings.Contains(err.Error(), "3.3.5a") {
+		t.Fatalf("err = %v", err)
+	}
+	if len(f.calls) != 0 {
+		t.Errorf("ran %q", f.calls)
+	}
+	entries, _ := os.ReadDir(dataDir)
+	for _, e := range entries {
+		if strings.HasPrefix(strings.ToLower(e.Name()), "patch") {
+			t.Errorf("wrote %s", e.Name())
+		}
+	}
+	if fileExists(filepath.Join(server, "data", "5875", "dbc", "Map.dbc")) {
+		t.Error("the server's Map.dbc was written")
 	}
 }
