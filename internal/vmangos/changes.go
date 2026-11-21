@@ -221,6 +221,9 @@ func PreviewPublish(readDir, patchDir string, m MapSpec) (PublishPreview, error)
 		case "wdl":
 			return "the far horizon"
 		case "dbc":
+			if f.Name == mapDifficultyFile {
+				return fmt.Sprintf("adds the normal difficulty of map %d, without which AzerothCore lets no one into a dungeon", m.MapID)
+			}
 			if newRow {
 				return fmt.Sprintf("adds the row of map %d (%s)", m.MapID, m.Dir)
 			}

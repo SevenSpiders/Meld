@@ -46,6 +46,8 @@ var laterFormats = map[string]bool{".adt": true, ".wdt": true, ".dbc": true, ".m
 var laterTables = map[string]bool{
 	"map": true, "areatable": true, "worldmaparea": true, "worldmapoverlay": true,
 	"taxinodes": true, "taxipath": true, "taxipathnode": true, "areatrigger": true, "loadingscreens": true,
+	// A new dungeon or raid's normal difficulty (mapdifficulty.go), which AzerothCore needs to let a player in.
+	"mapdifficulty": true,
 }
 
 // checkWritable refuses files that hold a file Meld cannot write for the 2.4.3 or 3.3.5a client

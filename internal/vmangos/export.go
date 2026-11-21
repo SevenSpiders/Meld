@@ -209,7 +209,39 @@ func buildMap(readDir string, m MapSpec) (files []mpq.File, dbc []byte, newRow b
 		}
 	}
 	files, err = buildMapFiles(set, m, dbc)
-	return files, dbc, newRow, err
+	if err != nil {
+		return nil, nil, false, err
+	}
+	diff, err := mapDifficultyFor(set, m)
+	if err != nil {
+		return nil, nil, false, err
+	}
+	if diff != nil {
+		files = append(files, mpq.File{Name: mapDifficultyFile, Data: diff})
+	}
+	return files, dbc, newRow, nil
+}
+
+// mapDifficultyFor is the client's MapDifficulty.dbc with a row for a map that has none (a map without
+// its info is a world map), or nil: for a map the table already has, for a battleground (whose rows
+// Meld does not write), and for a client without the table (1.12 and 2.4.3), whose servers take the
+// difficulty from the map itself.
+func mapDifficultyFor(set *mpq.Set, m MapSpec) ([]byte, error) {
+	info := MapInfo{}
+	if m.Info != nil {
+		info = *m.Info
+	}
+	if info.Type > 2 || !set.Has(mapDifficultyFile) {
+		return nil, nil
+	}
+	dbc, err := set.ReadFile(mapDifficultyFile)
+	if err != nil {
+		return nil, err
+	}
+	if has, err := hasMapDifficulty(dbc, m.MapID); err != nil || has {
+		return nil, err
+	}
+	return addMapDifficultyRow(dbc, m.MapID, info.Type, info.ResetDelay, info.MaxPlayers)
 }
 
 // buildMapFiles builds the map's tiles, WDT and WDL from the archives of set, with dbc as its Map.dbc.
